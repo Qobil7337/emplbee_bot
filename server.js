@@ -4,6 +4,12 @@ import axios from 'axios';
 const app = express()
 const port = 4000
 
+const organizationIds = {
+    "Qobil": 12345,
+    "Ibroxim": 54321,
+    "Jamoliddin": 67890
+}
+
 app.use(express.json());
 
 app.get('/', (req, res) => {
@@ -17,7 +23,7 @@ app.post('/create-task', async (req, res) => {
     };
 
     try {
-        await axios.post(`http://localhost:4000/notify`, {
+        await axios.post(`http://localhost:3000/notify`, {
             chatId: 5401590333,
             message: `📝 New Task Created:\n${task.title}\n${task.description}`
         })
@@ -28,6 +34,13 @@ app.post('/create-task', async (req, res) => {
     }
 
 
+})
+
+app.post('/check-org-id', async (req, res) => {
+    const id = Number(req.body.id)
+    const exists = Object.values(organizationIds).includes(id)
+
+    res.json({ exists })
 })
 
 app.listen(port, () => {
