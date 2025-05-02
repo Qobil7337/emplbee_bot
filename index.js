@@ -9,7 +9,7 @@ const port = 3000
 
 const bot = new Telegraf(process.env.BOT_TOKEN)
 
-
+const dev_api_url = process.env.DEV_API_URL;
 app.use(express.json());
 
 bot.start((ctx) => ctx.reply('Welcome'))
@@ -29,17 +29,35 @@ bot.command('configure', async (ctx) => {
         const groupId = ctx.chat.id
 
         try {
-            await axios.get(`http://localhost:8888/emplbee/BACKEND/web/index.php/v1/task/check-org-id?organizationId=${organizationId}`, {
+            await axios.get(`${dev_api_url}/task/check-org-id?organizationId=${organizationId}`, {
                 headers: {
                     Authorization: `Bearer ${process.env.BEARER_TOKEN}`,
                 }
-            }).then(response => {
-                console.log(response.data)
+            }).then(async response => {
                 if (!response.data) {
                     return ctx.reply('Organization with this id does not exist')
                 }
                 // add telegram group id to database
-                ctx.reply(`Configured with Organization ID: ${organizationId}`)
+               try {
+                   await axios.post(
+                       `${dev_api_url}/task/register-telegram-id`,
+                       {
+                           type: "group",
+                           code: groupId,
+                           config: JSON.stringify([])
+                       },
+                       {
+                           headers: {
+                               Authorization: `Bearer ${process.env.BEARER_TOKEN}`
+                           }
+                       }
+                   ).then(response => {
+                       console.log(response.data)
+                       ctx.reply(`Configured with Organization ID: ${organizationId}`)
+                   })
+               } catch (e) {
+                   console.log(e)
+               }
             })
         } catch (e) {
             console.log(e)
@@ -60,39 +78,57 @@ bot.command('settings', (ctx) => {
         reply_markup: {
             inline_keyboard: [
                 [
-                    { text: '✅ Task Creation', callback_data: 'setting_task_creation' },
-                    { text: '✅ Face Check-in', callback_data: 'setting_face_checkin' },
+                    { text: '✅ Task Updates', callback_data: 'task_update' },
                 ],
-                [
-                    { text: '✅ Face Check-out', callback_data: 'setting_face_checkout' }
-                ]
             ]
         }
     })
 })
 
 bot.on('callback_query', async (ctx) => {
-    const callbackData = ctx.callbackQuery.data;
+    const callbackData = ctx.callbackQuery.data
+    const groupId = ctx.chat.id
+    try {
+        const res = await axios.get(
+            `${dev_api_url}/task/get-telegram-config?groupId=${groupId}`,
+            {
+                headers: {
+                    Authorization: `Bearer ${process.env.BEARER_TOKEN}`,
+                }
+            }
+        )
+        let configArray = []
+        if (res.data && res.data.config) {
+            try {
+                configArray = JSON.parse(res.data.config)
+            } catch (e) {
+                console.error('Invalid config JSON:', e)
+            }
+        }
 
-    // Just for demonstration — later you can toggle or store this.
-    let message = '';
-
-    switch (callbackData) {
-        case 'setting_task_creation':
-            message = 'You selected: Task Creation';
-            break;
-        case 'setting_face_checkin':
-            message = 'You selected: Face Check-in';
-            break;
-        case 'setting_face_checkout':
-            message = 'You selected: Face Check-out';
-            break;
-        default:
-            message = 'Unknown option';
+        if (!configArray.includes('task_update')) {
+            configArray.push('task_update')
+            await axios.post(`${dev_api_url}/task/update-telegram-config`,
+                {
+                groupId,
+                config: JSON.stringify(configArray),
+            },
+                {
+                    headers: {
+                        Authorization: `Bearer ${process.env.BEARER_TOKEN}`
+                    }
+                }
+            ).then(response => {
+                ctx.reply('Task update is set successfully.')
+            })
+        } else {
+            await ctx.answerCbQuery('Already enabled')
+            await ctx.reply('Task Update is already enabled.')
+        }
+    } catch (e) {
+        console.log(e)
+        await ctx.reply('❌ Failed to update settings.')
     }
-
-    await ctx.answerCbQuery(); // dismiss loading
-    await ctx.reply(message);
 })
 
 bot.launch()
