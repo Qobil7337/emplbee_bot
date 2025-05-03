@@ -2,6 +2,9 @@
   "name": "emplbee_bot",
   "version": "1.0.0",
   "main": "src/index.ts",
+  "scripts": {
+    "dev": "nodemon"
+  },
   "type": "module",
   "keywords": [],
   "author": "Qobil Ashurov",
